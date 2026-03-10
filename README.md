@@ -3,7 +3,8 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 **LESDFS** is a lightweight Go-based encrypted vault system. It provides secure, FUSE-backed virtual filesystems for storing sensitive data. Vaults are mounted and managed through a background daemon and accessed via a CLI client.
-
+> [!WARNING]
+> This project is still under development.
 ---
 
 ## Features
