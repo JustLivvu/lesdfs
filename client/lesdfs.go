@@ -19,7 +19,7 @@ const (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: lesd --create|--list|--open|--delete <vault_name>")
+		fmt.Println("Usage: \nlesdfs --create\nlesdfs --list\nlesdfs --mount\nlesdfs --umount\nlesdfs --delete <vault_name>")
 		os.Exit(1)
 	}
 
@@ -28,7 +28,7 @@ func main() {
 	switch cmd {
 	case "--create":
 		if len(os.Args) != 3 {
-			log.Fatal("Usage: lesd --create <vault_name>")
+			log.Fatal("Usage: lesdfs --create <vault_name>")
 		}
 		if err := createVault(os.Args[2]); err != nil {
 			log.Fatal(err)
@@ -37,22 +37,22 @@ func main() {
 		listVaults()
 	case "--delete":
 		if len(os.Args) != 3 {
-			log.Fatal("Usage: lesd --delete <vault_name>")
+			log.Fatal("Usage: lesdfs --delete <vault_name>")
 		}
 		if err := deleteVault(os.Args[2]); err != nil {
 			log.Fatal(err)
 		}
-	case "--open":
+	case "--mount":
 		if len(os.Args) != 3 {
-			log.Fatal("Usage: lesd --open <vault_name>")
+			log.Fatal("Usage: lesdfs --mount <vault_name>")
 		}
 		if err := openVault(os.Args[2]); err != nil {
 			log.Fatal(err)
 		}
 
-	case "--close":
+	case "--umount":
 		if len(os.Args) != 3 {
-			log.Fatal("Usage: lesd --close <vault_name>")
+			log.Fatal("Usage: lesdfs --umount <vault_name>")
 		}
 		if err := closeVault(os.Args[2]); err != nil {
 			log.Fatal(err)

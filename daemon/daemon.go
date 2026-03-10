@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"fmt"
 	"os/signal"
 	"path/filepath"
 	"sync"
@@ -150,10 +151,20 @@ func (vd *VaultDaemon) UnmountVault(vaultName string) error {
 }
 
 func main() {
-
+		fmt.Println(`
+ __                            __   ______           
+|  \                          |  \ /      \          
+| $$  ______    _______   ____| $$|  $$$$$$\ _______ 
+| $$ /      \  /       \ /      $$| $$_  \$$/       \
+| $$|  $$$$$$\|  $$$$$$$|  $$$$$$$| $$ \   |  $$$$$$$
+| $$| $$    $$ \$$    \ | $$  | $$| $$$$    \$$    \ 
+| $$| $$$$$$$$ _\$$$$$$\| $$__| $$| $$      _\$$$$$$\
+| $$ \$$     \|       $$ \$$    $$| $$     |       $$
+ \$$  \$$$$$$$ \$$$$$$$   \$$$$$$$ \$$      \$$$$$$$ 
+	`)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	log.Println("Starting LES Vault Daemon v0.1")
+	log.Println("Starting Lesdfs Vault Daemon v0.1")
 
 	vd := NewVaultDaemon()
 

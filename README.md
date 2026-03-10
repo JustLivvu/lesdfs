@@ -1,8 +1,8 @@
-# LES Vault - Secure Encrypted Filesystem in Go
+# LESDFS - Secure Encrypted Filesystem in Go
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-**LES Vault** is a lightweight Go-based encrypted vault system. It provides secure, FUSE-backed virtual filesystems for storing sensitive data. Vaults are mounted and managed through a background daemon and accessed via a CLI client.
+**LESDFS** is a lightweight Go-based encrypted vault system. It provides secure, FUSE-backed virtual filesystems for storing sensitive data. Vaults are mounted and managed through a background daemon and accessed via a CLI client.
 
 ---
 
@@ -59,24 +59,24 @@ A lightweight command-line interface for interacting with the daemon and vaults.
 |---------|-------------|
 | `--create <vault_name>` | Create a new encrypted vault |
 | `--list` | List all existing vaults |
-| `--open <vault_name>` | Mount a vault via the daemon |
-| `--close <vault_name>` | Unmount a vault via the daemon |
+| `--mount <vault_name>` | Mount a vault via the daemon |
+| `--umount <vault_name>` | Unmount a vault via the daemon |
 | `--delete <vault_name>` | Delete a vault permanently |
 
 **Example:**
 
 ```bash
 # Create a new vault
-lesd --create my_vault
+lesdfs --create my_vault
 
-# List all vaults
-lesd --list
+# List all vaultsLesd
+lesdfs --list
 
 # Open and mount a vault
-lesd --open my_vault
+lesdfs --mount my_vault
 
 # Close and unmount a vault
-lesd --close my_vault
+lesdfs --umount my_vault
 
 # Delete a vault
-lesd --delete my_vault
+lesdfs --delete my_vault
