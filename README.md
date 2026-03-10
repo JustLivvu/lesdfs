@@ -22,7 +22,7 @@
 
 The project consists of three main components:
 
-### 1. Daemon (`daemon/main.go`)
+### 1. Daemon (`daemon/daemon.go`)
 The daemon is responsible for:
 
 - Mounting and unmounting vaults via HTTP endpoints.
@@ -51,7 +51,7 @@ VaultFS provides standard filesystem operations:
 
 ---
 
-### 3. CLI Client (`client/main.go`)
+### 3. CLI Client (`client/lesdfs.go`)
 A lightweight command-line interface for interacting with the daemon and vaults.
 
 **Supported commands:**
