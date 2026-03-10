@@ -1,1 +1,2 @@
-# LESD
+# LESD - Livvy Encrypted Storage Disk 
+

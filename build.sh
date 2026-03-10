@@ -9,7 +9,7 @@ read -p "do you want to copy client to ~/.local/bin? (y/n): " answer
 
 if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
     cd client
-    cp lesd ~/.local/bin/
+    mv lesd ~/.local/bin/
     cd ..
 else
     echo "ok"
@@ -19,7 +19,7 @@ read -p "do you want to copy daemon to ~/.local/bin? (y/n): " answer
 
 if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
     cd daemon
-    cp lesd-daemon ~/.local/bin/
+    mv lesd-daemon ~/.local/bin/
     cd ..
 else
     echo "ok"

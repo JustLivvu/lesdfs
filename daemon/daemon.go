@@ -6,10 +6,12 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sync"
 	"syscall"
-	"os/signal"
+	"time"
 
 	"lesd2/vaultfs"
 
@@ -25,25 +27,42 @@ type VaultDaemon struct {
 }
 
 func NewVaultDaemon() *VaultDaemon {
+	log.Println("Initializing VaultDaemon")
 	return &VaultDaemon{
 		mounts: make(map[string]string),
 	}
 }
 
 func (vd *VaultDaemon) MountVault(vaultName, vaultPath, password string) error {
+
+	start := time.Now()
+	log.Printf("MountVault requested: vault=%s path=%s", vaultName, vaultPath)
+
 	mountPath := filepath.Join(MountBaseDir, vaultName)
+
 	if err := os.MkdirAll(MountBaseDir, 0700); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(mountPath, 0700); err != nil {
+		log.Printf("ERROR creating base mount dir: %v", err)
 		return err
 	}
 
-	salt, err := vaultfs.InitSalt(vaultPath)
-	if err != nil {
+	if err := os.MkdirAll(mountPath, 0700); err != nil {
+		log.Printf("ERROR creating mount dir %s: %v", mountPath, err)
 		return err
 	}
+
+	log.Printf("Initializing vault salt: %s", vaultPath)
+
+	salt, err := vaultfs.InitSalt(vaultPath)
+	if err != nil {
+		log.Printf("ERROR InitSalt: %v", err)
+		return err
+	}
+
+	log.Printf("Deriving encryption key for vault=%s", vaultName)
+
 	key := vaultfs.DeriveKey(password, salt)
+
+	log.Printf("Mounting FUSE filesystem at %s", mountPath)
 
 	c, err := fuse.Mount(
 		mountPath,
@@ -51,7 +70,9 @@ func (vd *VaultDaemon) MountVault(vaultName, vaultPath, password string) error {
 		fuse.Subtype("lesdfs"),
 		fuse.DefaultPermissions(),
 	)
+
 	if err != nil {
+		log.Printf("ERROR fuse.Mount failed: %v", err)
 		return err
 	}
 
@@ -59,85 +80,181 @@ func (vd *VaultDaemon) MountVault(vaultName, vaultPath, password string) error {
 	vd.mounts[vaultName] = mountPath
 	vd.mu.Unlock()
 
+	log.Printf("Vault mounted: %s -> %s", vaultName, mountPath)
+
 	defer func() {
-		fuse.Unmount(mountPath)
+
+		log.Printf("FUSE session ended for vault=%s", vaultName)
+
+		err := fuse.Unmount(mountPath)
+		if err != nil {
+			log.Printf("WARNING fuse.Unmount failed: %v", err)
+		}
+
 		vd.mu.Lock()
 		delete(vd.mounts, vaultName)
 		vd.mu.Unlock()
+
+		log.Printf("Vault removed from active list: %s", vaultName)
 	}()
 
-	filesys := &vaultfs.VaultFS{VaultPath: vaultPath, Key: key}
+	filesys := &vaultfs.VaultFS{
+		VaultPath: vaultPath,
+		Key:       key,
+	}
+
+	log.Printf("Starting FUSE serve loop for vault=%s", vaultName)
 
 	if err := bfs.Serve(c, filesys); err != nil {
-		log.Println("Serve error:", err)
+		log.Printf("ERROR FUSE Serve: %v", err)
 	}
+
+	log.Printf("MountVault finished vault=%s duration=%s", vaultName, time.Since(start))
 
 	return nil
 }
 
-func (vd *VaultDaemon) UnmountVault(vaultName string) {
+func (vd *VaultDaemon) UnmountVault(vaultName string) error {
+
+	log.Printf("UnmountVault requested: %s", vaultName)
+
 	vd.mu.Lock()
 	mountPath, ok := vd.mounts[vaultName]
 	vd.mu.Unlock()
-	if ok {
-		fuse.Unmount(mountPath)
-		vd.mu.Lock()
-		delete(vd.mounts, vaultName)
-		vd.mu.Unlock()
+
+	if !ok {
+		log.Printf("Vault not mounted: %s", vaultName)
+		return nil
 	}
+
+	log.Printf("Executing: umount -l %s", mountPath)
+
+	cmd := exec.Command("umount", "-l", mountPath)
+
+	out, err := cmd.CombinedOutput()
+
+	if err != nil {
+		log.Printf("ERROR umount failed: %v output=%s", err, string(out))
+		return err
+	}
+
+	log.Printf("Unmount successful: %s", mountPath)
+
+	vd.mu.Lock()
+	delete(vd.mounts, vaultName)
+	vd.mu.Unlock()
+
+	log.Printf("Vault removed from map: %s", vaultName)
+
+	return nil
 }
 
 func main() {
+
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	log.Println("Starting LES Vault Daemon v0.1")
+
 	vd := NewVaultDaemon()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
 	go func() {
+
 		<-ctx.Done()
-		log.Println("Unmounting all vaults...")
+
+		log.Println("Shutdown signal received")
+
 		vd.mu.Lock()
-		for _, mountPath := range vd.mounts {
-			fuse.Unmount(mountPath)
+
+		for name := range vd.mounts {
+
+			log.Printf("Auto-unmounting vault: %s", name)
+
+			err := vd.UnmountVault(name)
+			if err != nil {
+				log.Printf("ERROR auto-unmount: %v", err)
+			}
+
 		}
+
 		vd.mu.Unlock()
+
+		log.Println("Daemon shutdown complete")
+
 		os.Exit(0)
 	}()
 
 	http.HandleFunc("/mount", func(w http.ResponseWriter, r *http.Request) {
+
 		vault := r.URL.Query().Get("vault")
 		vaultPath := r.URL.Query().Get("path")
 		password := r.URL.Query().Get("password")
+
+		log.Printf("HTTP /mount request vault=%s path=%s", vault, vaultPath)
+
 		if vault == "" || vaultPath == "" || password == "" {
+
+			log.Println("HTTP /mount missing parameters")
+
 			w.WriteHeader(400)
 			w.Write([]byte("missing parameters"))
 			return
 		}
 
 		go func() {
-			if err := vd.MountVault(vault, vaultPath, password); err != nil {
-				log.Println("MountVault error:", err)
+
+			err := vd.MountVault(vault, vaultPath, password)
+
+			if err != nil {
+				log.Printf("MountVault error: %v", err)
 			}
+
 		}()
 
 		w.Write([]byte("ok"))
 	})
 
 	http.HandleFunc("/unmount", func(w http.ResponseWriter, r *http.Request) {
+
 		vault := r.URL.Query().Get("vault")
+
+		log.Printf("HTTP /unmount request vault=%s", vault)
+
 		if vault == "" {
+
+			log.Println("HTTP /unmount missing vault name")
+
 			w.WriteHeader(400)
 			w.Write([]byte("missing vault name"))
 			return
 		}
-		vd.UnmountVault(vault)
+
+		err := vd.UnmountVault(vault)
+
+		if err != nil {
+
+			log.Printf("HTTP unmount failed: %v", err)
+
+			http.Error(w, "failed to unmount: "+err.Error(), 500)
+			return
+		}
+
 		w.Write([]byte("ok"))
 	})
 
 	listener, err := net.Listen("tcp", "127.0.0.1:8080")
+
 	if err != nil {
-		log.Fatal("cannot listen:", err)
+		log.Fatal("Cannot listen:", err)
 	}
 
-	log.Println("LES Vault Daemon v0.1 running on localhost:8080")
-	log.Fatal(http.Serve(listener, nil))
+	log.Println("Daemon listening on 127.0.0.1:8080")
+
+	err = http.Serve(listener, nil)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
